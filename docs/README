@@ -1,0 +1,15 @@
+podgrabber is a very simple podcast aggregator.  You setup feeds to your
+favorite podcasts and let podgrabber go get them.  Plug in your portable audio
+device and let it keep you in sync with the latest files you downloaded.  This
+software is still beta, but I use it every day, so it is functional.
+
+Add the "src" directory to your PYTHONPATH and then run
+
+python -c "import podgrabber.controller; podgrabber.controller.RSSController().run()"
+
+TODO:
+    installer/packaging
+    file management through sync tab
+    get it working on Windows.
+
+Send questions, comments, suggestions to jemejones@gmail.com

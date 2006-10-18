@@ -51,18 +51,26 @@ class Config(object):
                     "proxy_active": False,
                     "view": "gui",
                     "max_simultaneous_dls": 5,
+                    'portable_media_mount': '/media/SANSA E130',
                 },
                 'feeds': {
-                    'http://geekmuse.net/podcast/': {'mode': 'dl', 'name': 'Geek Muse'},
-                    'http://leo.am/podcasts/floss': {'mode': 'dl', 'name': 'FLOSS Weekly'},
+                    'http://leoville.tv/podcasts/dgw.xml': {'mode': 'dl', 'name': 'Daily Giz Wiz'},
+                    'http://leoville.tv/podcasts/floss.xml': {'mode': 'dl', 'name': 'FLOSS Weekly'},
                     'http://leoville.tv/podcasts/itn.xml': {'mode': 'dl', 'name': 'Inside the Net'},
                     'http://leoville.tv/podcasts/sn.xml': {'mode': 'dl', 'name': 'Security Now!'},
-                    'http://leoville.tv/podcasts/twit.xml': {'mode': 'dl', 'name': 'this WEEK in TECH - MP3 Edition'},
+                    'http://leoville.tv/podcasts/twit.xml': {'mode': 'dl', 'name': 'this WEEK in TECH'},
+                    'http://news.com.com/html/ne/podcasts/daily_podcast.xml?tag=txt': {'mode': 'dl', 'name': 'News.com Daily'},
+                    'http://news.com.com/html/ne/podcasts/security_bites.xml?tag=txt': {'mode': 'dl', 'name': 'Security Bites'},
+                    'http://sploitcast.libsyn.com/rss': {'mode': 'dl', 'name': 'SploitCast'},
+                    'http://www.awaretek.com/python/index.xml': {'mode': 'dl', 'name': 'Python411'},
                     'http://www.cnet.com/i/pod/cnet_buzz.xml': {'mode': 'dl', 'name': 'Buzz Out Loud from CNET'},
+                    'http://www.lugradio.org/episodes.rss': {'mode': 'dl', 'name': 'LugRadio'},
                     'http://www.oreillynet.com/pub/feed/37?format=rss2': {'mode': 'dl', 'name': 'Distributing the Future'},
-                    'http://www.twis.org/audio/podcast.rss': {'mode': 'dl', 'name': 'This Week in Science - The Kickass Science Podcast'},
-                },
+                    'http://www.twis.org/audio/podcast.rss': {'mode': 'dl', 'name': 'This Week in Science'},
+                }
             }
+
+
             if not os.path.isdir(config['admin']['podcast_dir']):
                 os.makedirs(config['admin']['podcast_dir'])
             config_file_obj = open(self.config_file, "w")

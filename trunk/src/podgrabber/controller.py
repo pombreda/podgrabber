@@ -381,10 +381,70 @@ class RSSController:
         print "update_dl_manager_max", max_dls
         self.dlm.dl_sema = threading.Semaphore(max_dls)
 
-    def update_status(self, statusMessage):
-        self.view.updateStatusInfo(statusMessage)
+    def update_download_status_bar(self, statusMessage):
+        self.view.updateDownloadStatusBar(statusMessage)
+
+    def update_sync_status_bar(self, statusMessage):
+        self.view.updateSyncStatusBar(statusMessage)
+
+    def get_sync_files(self):
+        print "syncing files"
+        portable_media_root = self.config.admin.get("portable_media_mount")
+        download_root = self.config.admin.get("download_dir")
+        on_device_files = []
+        port_media_dirs = Set([d for d in os.listdir(portable_media_root) if os.path.isdir(os.path.join(portable_media_root, d))])
+        download_dirs = Set([d for d in os.listdir(download_root) if os.path.isdir(os.path.join(download_root, d))])
+        common_dirs = download_dirs.intersection(port_media_dirs)
+        missing_dirs = download_dirs.difference(port_media_dirs)
+        print "common_dirs", common_dirs
+        print "missing_dirs", missing_dirs
+        files_to_del = []
+        files_to_add = []
+        ##
+        dl_files = []
+        pa_files = []
+        for d in common_dirs:
+            download_files = Set(os.listdir(os.path.join(download_root, d)))
+            port_media_files = Set(os.listdir(os.path.join(portable_media_root, d)))
+            ##do files to add
+            dl_files += [(d, f, 1) for f in download_files.difference(port_media_files)]
+            ##do common files
+            dl_files += [(d, f, 0) for f in download_files.intersection(port_media_files)]
+
+            ##do files to delete
+            pa_files += [(d, f, -1) for f in port_media_files.difference(download_files)]
+            ##do common files
+            pa_files += [(d, f, 0) for f in port_media_files.intersection(download_files)]
+        print "*" * 40
+        print "dl_files::", dl_files
+        print "pa_files::", pa_files
+        print "*" * 40
+        dl_files.sort()
+        pa_files.sort()
+        return dl_files, pa_files
+
 
     def sync_files(self):
+        pm_root = self.config.admin.get("portable_media_mount")
+        dl_root = self.config.admin.get("download_dir")
+        dl_files, pa_files = self.get_sync_files()
+        for feed, pa_file, status in pa_files:
+            if status == -1:
+                os.unlink(os.path.join(pm_root, feed, pa_file))
+                self.update_sync_status_bar("Deleting file %s" % pa_file)
+        for feed, dl_file, status in dl_files:
+            if status == 1:
+                self.update_sync_status_bar("Copying file %s" % dl_file)
+                try:
+                    os.makedirs(os.path.join(pm_root, feed))
+                except OSError:
+                    pass
+                shutil.copyfile(os.path.join(dl_root, feed, dl_file),
+                    os.path.join(pm_root, feed, dl_file))
+        self.update_sync_status_bar("Done with Sync")
+        return
+
+        ##XXX - the rest of this method won't get executed.
         print "syncing files"
         portable_media_root = self.config.admin.get("portable_media_mount")
         download_root = self.config.admin.get("download_dir")
@@ -415,8 +475,8 @@ class RSSController:
         print "files_to_add", files_to_add
 
         for file_to_del in files_to_del:
-            self.update_status("Deleting file %s" % file_to_del)
-            os.unlink(file_to_del)
+            self.update_sync_status_bar("Deleting file %s" % file_to_del)
+            #os.unlink(file_to_del)
 
         for from_file, to_file in files_to_add:
             try:
@@ -424,15 +484,15 @@ class RSSController:
                 print "Making dir:", dir_to_make
                 os.makedirs(os.path.split(to_file)[0])
             except OSError:
-                print "OSError making dir"
+                pass
             '''
             dir_to_make = os.path.split(to_file)[0]
             print "Making dir:", dir_to_make
             os.makedirs(os.path.split(to_file)[0])
             '''
-            self.update_status("Copying file %s" % to_file)
+            self.update_sync_status_bar("Copying file %s" % to_file)
             shutil.copyfile(from_file, to_file)
-        self.update_status("Done with Sync")
+        self.update_sync_status_bar("Done with Sync")
 
 
     def run(self):

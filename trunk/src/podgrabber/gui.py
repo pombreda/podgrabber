@@ -7,8 +7,10 @@ import gtk
 import gobject
 import feedparser
 import threading
+import os
 
-MAIN_WINDOW_WIDTH = 600
+MAIN_WINDOW_WIDTH = 1200
+MAIN_WINDOW_HEIGHT = 600
 
 def threaded(f):
     def wrapper(*args):
@@ -17,6 +19,7 @@ def threaded(f):
     return wrapper
 
 downloadList = [("dl", "Download"), ("catchup", "Catchup"), ("no_dl", "Don't Download")]
+syncColorMap = {-1: "red", 0: "white", 1: "green"}
 
 class RssGui:
     ui = '''<ui>
@@ -44,7 +47,9 @@ class RssGui:
       <separator/>
     </toolbar>
     <toolbar name="SyncToolbar">
+      <toolitem action="DeleteDownloadedFile"/>
       <toolitem action="Config"/>
+      <toolitem action="RefreshSync"/>
       <toolitem action="Sync"/>
       <toolitem action="Quit"/>
       <separator/>
@@ -58,7 +63,7 @@ class RssGui:
 
         ##create main window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.set_default_size(1200, 600)
+        self.window.set_default_size(MAIN_WINDOW_WIDTH, MAIN_WINDOW_HEIGHT)
 
         ###main window handlers
         #self.window.connect("delete_event", self.delete_event)
@@ -103,7 +108,9 @@ class RssGui:
 
         self.sync_actiongroup.add_actions(
             [
+                ('DeleteDownloadedFile', gtk.STOCK_REMOVE, 'Delete', None, 'Delete Downloaded File', self.DeleteDownloadedFile),
                 ('Sync', gtk.STOCK_CONNECT, 'Sync', None, 'Sync Files with Portable Media Player', self.SyncFiles),
+                ('RefreshSync', gtk.STOCK_REFRESH, 'Refresh', None, 'Refresh View of Files on Local Drive and Portable Media Player', self.RefreshSync),
             ]
         )
 
@@ -171,19 +178,45 @@ class RssGui:
         self.sync_status_bar = gtk.Statusbar()
         self.sync_vbox.pack_end(self.sync_status_bar, False)
 
+        self.sync_hpaned.set_position(MAIN_WINDOW_WIDTH/2)
+
         self.sync_vbox.pack_start(self.sync_hpaned, True)
 
 
 
         self.downloadedSyncView = gtk.TreeView()
         downloaded_scrolled_window.add(self.downloadedSyncView)
-        for column, title in enumerate(("File", "Feed", "Date", "Size")):
-            self.AddColumn(self.downloadedSyncView, title, column)
-
-        self.downloadedSyncList = gtk.ListStore(str, str, str, int)
+        downloadRenderer = gtk.CellRendererText()
+        for column, title in enumerate(("Downloaded File", "Feed", "Date", "Size")):
+            #self.AddColumn(self.downloadedSyncView, title, column)
+            self.downloadedSyncView.append_column(gtk.TreeViewColumn(title, downloadRenderer,
+                text=column, background=4))
+        self.downloadedSyncList = gtk.ListStore(str, str, str, int, str)
         self.downloadedSyncView.set_model(self.downloadedSyncList)
         downloadedSyncViewSelection = self.downloadedSyncView.get_selection()
         downloadedSyncViewSelection.set_mode(gtk.SELECTION_MULTIPLE)
+
+        self.playerSyncView = gtk.TreeView()
+        player_scrolled_window.add(self.playerSyncView)
+        syncRenderer = gtk.CellRendererText()
+
+        #for column, title in enumerate(("Portable Audio File", "Feed", "Date", "Size")):
+        #    self.AddColumn(self.playerSyncView, title, column)
+
+        for column, title in enumerate(("Portable Audio File", "Feed", "Date", "Size")):
+            #self.AddColumn(self.downloadedSyncView, title, column)
+            self.playerSyncView.append_column(gtk.TreeViewColumn(title, syncRenderer,
+                text=column, background=4))
+
+        self.playerSyncList = gtk.ListStore(str, str, str, int, str)
+        self.playerSyncView.set_model(self.playerSyncList)
+        #playerSyncViewSelection = self.playerSyncView.get_selection()
+        #playerSyncViewSelection.set_mode(gtk.SELECTION_MULTIPLE)
+
+
+
+        ###self.downloadList.append([feed_name, dl_url, length, file_type, "", mode, title])
+
         ###END SYNC TAB
 
 
@@ -196,6 +229,9 @@ class RssGui:
 
 
         self.window.add(self.main_notebook)
+
+        icon = self.window.render_icon(gtk.STOCK_EXECUTE, gtk.ICON_SIZE_BUTTON)
+        self.window.set_icon(icon)
 
         self.window.connect("destroy", self.destroy)
 
@@ -353,10 +389,18 @@ class RssGui:
             gtk.threads_leave()
 
     @threaded
-    def updateStatusInfo(self, statusMessage):
+    def updateDownloadStatusBar(self, statusMessage):
         gtk.threads_enter()
         try:
             self.download_status_bar.push(1, statusMessage)
+        finally:
+            gtk.threads_leave()
+
+    @threaded
+    def updateSyncStatusBar(self, statusMessage):
+        gtk.threads_enter()
+        try:
+            self.sync_status_bar.push(1, statusMessage)
         finally:
             gtk.threads_leave()
 
@@ -414,7 +458,42 @@ class RssGui:
     def SyncFiles(self, widget):
         print "SyncFiles"
         self.controller.sync_files()
+        self.RefreshSync(None)
 
+    def RefreshSync(self, widget):
+        print "RefreshSync"
+        self.downloadedSyncList.clear()
+        self.playerSyncList.clear()
+        dl_files, pa_files = self.controller.get_sync_files()
+        for feed, dl_file, status in dl_files:
+            self.downloadedSyncList.append([dl_file, feed, str(status), 0, syncColorMap[status]])
+        for feed, pa_file, status in pa_files:
+            self.playerSyncList.append([pa_file, feed, str(status), 0, syncColorMap[status]])
+            
+
+    def DeleteDownloadedFile(self, widget):
+        print "DeleteDownloadedFile"
+        selection = self.downloadedSyncView.get_selection()
+        treeModel, treeRows = selection.get_selected_rows()
+        treeItems = [treeModel[i] for i in treeRows]
+        for treeItem in treeItems:
+            row = list(treeItem)
+            print row
+            filename = row[0]
+            feed = row[1]
+            try:
+                os.unlink(os.path.join(self.config.Admin.get("download_dir", "/"), feed, filename))
+            except OSError:
+                print "could not delete file %s from feed %s" % (filename, feed)
+        self.RefreshSync(None)
+            
+            
+            
+        #print treeItems
+        #print [dir(i) for i in treeItems]
+        #print [i.iter for i in treeItems]
+        #print [i.path for i in treeItems]
+        #print [i.model for i in treeItems]
 
 class Feed:
     def __init__(self, name="", url="", dl=""):

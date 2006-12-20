@@ -25,7 +25,9 @@ import podgrabber.gui
 import shutil
 
 READ_CHUNK = 8 * 1024
-attach_re = re.compile('''^attachment;\s*filename\s*=\s*['"](.*?)['"]''')
+test_quote = "'\""
+
+attach_re = re.compile('''^attachment;\s*filename\s*=\s*[''' + test_quote + '''](.*?)[''' + test_quote + ''']''')
 
 
 def threaded(f):
@@ -392,10 +394,26 @@ class RSSController:
         portable_media_root = self.config.admin.get("portable_media_mount")
         download_root = self.config.admin.get("download_dir")
         on_device_files = []
-        port_media_dirs = Set([d for d in os.listdir(portable_media_root) if os.path.isdir(os.path.join(portable_media_root, d))])
-        download_dirs = Set([d for d in os.listdir(download_root) if os.path.isdir(os.path.join(download_root, d))])
-        common_dirs = download_dirs.intersection(port_media_dirs)
-        missing_dirs = download_dirs.difference(port_media_dirs)
+        found_error = False
+        try:
+            port_media_dirs = Set([d for d in os.listdir(portable_media_root) if os.path.isdir(os.path.join(portable_media_root, d))])
+        except OSError:
+            port_media_dirs = Set([])
+            found_error = True
+
+        try:
+            download_dirs = Set([d for d in os.listdir(download_root) if os.path.isdir(os.path.join(download_root, d))])
+        except OSError:
+            download_dirs = Set([])
+            found_error = True
+
+        if found_error:
+            common_dirs = download_dirs.union(port_media_dirs)
+            #missing_dirs = download_dirs.difference(port_media_dirs)
+            missing_dirs = Set([])
+        else:
+            common_dirs = download_dirs.intersection(port_media_dirs)
+            missing_dirs = download_dirs.difference(port_media_dirs)
         print "common_dirs", common_dirs
         print "missing_dirs", missing_dirs
         files_to_del = []
@@ -403,18 +421,36 @@ class RSSController:
         ##
         dl_files = []
         pa_files = []
+        if found_error:
+            TO_ADD, SAME, TO_DEL = 0, 0, 0
+        else:
+            TO_ADD, SAME, TO_DEL = 1, 0, -1
         for d in common_dirs:
-            download_files = Set(os.listdir(os.path.join(download_root, d)))
-            port_media_files = Set(os.listdir(os.path.join(portable_media_root, d)))
+            try:
+                download_files = Set(os.listdir(os.path.join(download_root, d)))
+            except OSError:
+                download_files = Set([])
+            try:
+                port_media_files = Set(os.listdir(os.path.join(portable_media_root, d)))
+            except OSError:
+                port_media_files = Set([])
             ##do files to add
-            dl_files += [(d, f, 1) for f in download_files.difference(port_media_files)]
+            dl_files += [(d, f, TO_ADD) for f in download_files.difference(port_media_files)]
             ##do common files
-            dl_files += [(d, f, 0) for f in download_files.intersection(port_media_files)]
+            dl_files += [(d, f, SAME) for f in download_files.intersection(port_media_files)]
 
             ##do files to delete
-            pa_files += [(d, f, -1) for f in port_media_files.difference(download_files)]
+            pa_files += [(d, f, TO_DEL) for f in port_media_files.difference(download_files)]
             ##do common files
-            pa_files += [(d, f, 0) for f in port_media_files.intersection(download_files)]
+            pa_files += [(d, f, SAME) for f in port_media_files.intersection(download_files)]
+
+
+        for d in missing_dirs:
+            try:
+                dl_files += [(d, f, TO_ADD) for f in os.listdir(os.path.join(download_root, d))]
+            except OSError:
+                pass
+
         print "*" * 40
         print "dl_files::", dl_files
         print "pa_files::", pa_files

@@ -47,10 +47,10 @@ class RssGui:
       <separator/>
     </toolbar>
     <toolbar name="SyncToolbar">
-      <toolitem action="DeleteDownloadedFile"/>
-      <toolitem action="Config"/>
       <toolitem action="RefreshSync"/>
+      <toolitem action="DeleteDownloadedFile"/>
       <toolitem action="Sync"/>
+      <toolitem action="Config"/>
       <toolitem action="Quit"/>
       <separator/>
     </toolbar>
@@ -90,27 +90,27 @@ class RssGui:
         ##add actions
         self.config_actiongroup.add_actions(
             [
-                ('Quit', gtk.STOCK_QUIT, '_Quit', None, 'Quit the Program', self.Quit),
-                ('Config', gtk.STOCK_PREFERENCES, 'Configuration', None, 'Application Configuration', self.Configure),
-                ('AddFeed', gtk.STOCK_ADD, 'Add Feed', None, 'Add a new RSS feed', self.AddFeed),
-                ('EditFeed', gtk.STOCK_EDIT, 'Edit Feed', None, 'Edit an RSS feed', self.EditFeed),
-                ('RemoveFeed', gtk.STOCK_REMOVE, 'Remove Feed', None, 'Remove an RSS feed', self.RemoveFeed),
+                ('Quit', gtk.STOCK_QUIT, '', None, 'Quit the Program', self.Quit),
+                ('Config', gtk.STOCK_PREFERENCES, '', None, 'Application Configuration', self.Configure),
+                ('AddFeed', gtk.STOCK_ADD, '', None, 'Add a new RSS feed', self.AddFeed),
+                ('EditFeed', gtk.STOCK_EDIT, '', None, 'Edit an RSS feed', self.EditFeed),
+                ('RemoveFeed', gtk.STOCK_REMOVE, '', None, 'Remove an RSS feed', self.RemoveFeed),
             ]
         )
         self.download_actiongroup.add_actions(
             [
-                ('RefreshDownloads', gtk.STOCK_REFRESH, 'Refresh Downloads', None, 'Refresh List of Available Downloads', self.RefreshDownloads),
-                ('DownloadAll', gtk.STOCK_GOTO_BOTTOM, 'Download All', None, 'Download all Available Podcasts', self.DownloadAll),
-                ('DownloadSelected', gtk.STOCK_GO_DOWN, 'Download Selected', None, 'Download Selected Available Podcasts', self.DownloadSelected),
-                ('MarkAsDownloaded', gtk.STOCK_APPLY, 'Mark as Downloaded', None, 'Mark Selected Podcast as Downloaded', self.MarkAsDownloaded),
+                ('RefreshDownloads', gtk.STOCK_REFRESH, '', None, 'Refresh List of Available Downloads', self.RefreshDownloads),
+                ('DownloadAll', gtk.STOCK_GOTO_BOTTOM, '', None, 'Download all Available Podcasts', self.DownloadAll),
+                ('DownloadSelected', gtk.STOCK_GO_DOWN, '', None, 'Download Selected Available Podcasts', self.DownloadSelected),
+                ('MarkAsDownloaded', gtk.STOCK_APPLY, '', None, 'Mark Selected Podcast as Downloaded', self.MarkAsDownloaded),
             ]
         )
 
         self.sync_actiongroup.add_actions(
             [
-                ('DeleteDownloadedFile', gtk.STOCK_REMOVE, 'Delete', None, 'Delete Downloaded File', self.DeleteDownloadedFile),
-                ('Sync', gtk.STOCK_CONNECT, 'Sync', None, 'Sync Files with Portable Media Player', self.SyncFiles),
-                ('RefreshSync', gtk.STOCK_REFRESH, 'Refresh', None, 'Refresh View of Files on Local Drive and Portable Media Player', self.RefreshSync),
+                ('DeleteDownloadedFile', gtk.STOCK_REMOVE, '', None, 'Delete Downloaded File', self.DeleteDownloadedFile),
+                ('Sync', gtk.STOCK_CONNECT, '', None, 'Sync Files with Portable Media Player', self.SyncFiles),
+                ('RefreshSync', gtk.STOCK_REFRESH, '', None, 'Refresh View of Files on Local Drive and Portable Media Player', self.RefreshSync),
             ]
         )
 
@@ -223,8 +223,8 @@ class RssGui:
 
         ###ATTACH VBOXES TO NOTEBOOK
         self.main_notebook = gtk.Notebook()
-        self.main_notebook.append_page(self.feeds_vbox, gtk.Label("Feeds"))
         self.main_notebook.append_page(self.download_vbox, gtk.Label("Download"))
+        self.main_notebook.append_page(self.feeds_vbox, gtk.Label("Feeds"))
         self.main_notebook.append_page(self.sync_vbox, gtk.Label("Sync"))
 
 

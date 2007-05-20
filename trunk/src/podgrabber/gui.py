@@ -3,6 +3,7 @@
 import pygtk
 pygtk.require('2.0')
 import gtk
+import gtk.gdk
 
 import gobject
 import feedparser
@@ -350,16 +351,16 @@ class RssGui:
     @threaded
     def RefreshDownloads(self, widget):
         print "RefreshDownloads"
-        gtk.threads_enter()
+        gtk.gdk.threads_enter()
         #status_bar = self.wTree.get_widget("mainStatusbar")
         self.downloadList.clear()
-        gtk.threads_leave()
+        gtk.gdk.threads_leave()
         for feed_url in self.controller.get_available_feeds():
             feed_name = self.config.Feeds[feed_url]["name"]
             mode = self.config.Feeds[feed_url]["mode"]
-            gtk.threads_enter()
+            gtk.gdk.threads_enter()
             self.download_status_bar.push(1, feed_name)
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
             for download in self.controller.get_download_list(feed_url):
                 dl_url = download["enclosure"].attrib.get("url", "NONE")
                 try:
@@ -368,17 +369,17 @@ class RssGui:
                     length = 0
                 file_type = download["enclosure"].attrib.get("type", "UNKNOWN")
                 title = download.get("title", "No Title")
-                gtk.threads_enter()
+                gtk.gdk.threads_enter()
                 self.downloadList.append([feed_name, dl_url, length, file_type, "", mode, title])
-                gtk.threads_leave()
-            gtk.threads_enter()
+                gtk.gdk.threads_leave()
+            gtk.gdk.threads_enter()
             self.download_status_bar.push(1, "%s - Done" % feed_name)
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
         print "Done RefreshDownloads"
 
     #@threaded
     def updateDownloadStatus(self, treeIter, status):
-        gtk.threads_enter()
+        gtk.gdk.threads_enter()
         try:
             print "update::", status
             self.downloadList.set_value(treeIter, 4, status)
@@ -386,23 +387,23 @@ class RssGui:
             #status_bar.push(1, status)
             self.downloadView.queue_draw()
         finally:
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
 
     @threaded
     def updateDownloadStatusBar(self, statusMessage):
-        gtk.threads_enter()
+        gtk.gdk.threads_enter()
         try:
             self.download_status_bar.push(1, statusMessage)
         finally:
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
 
     @threaded
     def updateSyncStatusBar(self, statusMessage):
-        gtk.threads_enter()
+        gtk.gdk.threads_enter()
         try:
             self.sync_status_bar.push(1, statusMessage)
         finally:
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
 
     @threaded
     def DownloadAll(self, widget):
@@ -423,13 +424,13 @@ class RssGui:
     @threaded
     def DownloadSelected(self, widget):
         print "DownloadSelected"
-        gtk.threads_enter()
+        gtk.gdk.threads_enter()
         try:
             selection = self.downloadView.get_selection()
             treeModel, treeRows = selection.get_selected_rows()
             treeItems = [(treeModel[i], i) for i in treeRows]
         finally:
-            gtk.threads_leave()
+            gtk.gdk.threads_leave()
             ##pass
         for treeItem, treeIndex in treeItems:
             row = list(treeItem)
@@ -503,6 +504,13 @@ class Feed:
         self.podcastUrlWidget = gtk.Entry()
         self.podcastUrlWidget.set_text(url)
         self.podcastDlWidget = gtk.combo_box_new_text()
+
+        ##DEFAULTS
+        self.podcastDefaultGenreWidget = gtk.Entry()
+        self.podcastDefaultArtistWidget = gtk.Entry()
+
+
+
         for dl in downloadList:
             self.podcastDlWidget.append_text(dl[0])
         try:
@@ -523,6 +531,14 @@ class Feed:
         table.attach(self.podcastUrlWidget, 1, 2, 1, 2)
         table.attach(gtk.Label("DL Mode"), 0, 1, 2, 3)
         table.attach(self.podcastDlWidget, 1, 2, 2, 3)
+
+
+        ###DEFAULTS
+        table.attach(gtk.Label("Default Genre"), 0, 1, 3, 4)
+        table.attach(self.podcastDefaultGenreWidget, 1, 2, 3, 4)
+
+        table.attach(gtk.Label("Default Artist"), 0, 1, 4, 5)
+        table.attach(self.podcastDefaultArtistWidget, 1, 2, 4, 5)
 
         table.show_all()
         self.dlg.vbox.add(table)

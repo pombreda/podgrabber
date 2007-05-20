@@ -8,6 +8,24 @@ Syntax:
 
 """
 
+
+
+"""
+view
+controller
+config
+
+
+
+controller
+configuration manager
+download manager
+media store
+rss feeds
+
+
+"""
+
 #import feedparser
 import sys
 from elementtree import ElementTree
@@ -135,93 +153,90 @@ class DownloadManager:
         self.config = config
         self.controller = controller
         self.dl_sema = threading.Semaphore(self.config.Admin.get("max_simultaneous_dls", 5))
+        #lock for checking and updating dl_file_dict so we don't d/l the same file twice at a time
+        self.dl_file_lock = threading.Lock() 
+        self.dl_file_dict = {}
     #def addItem(self, text_dict, feed_dict):
+
+    #def addItem(self, item_title, enclosure_url, mode, feed_name, identifier=1):
     @threaded
-    def addItem(self, item_title, enclosure_url, mode, feed_name, identifier=1):
+    def addItem(self, url, download_directory, identifier=1):
         """
         download the given item.  return when done.
 
         This method expects an elementtree object for an item tag which
         contains an enclosure.
 
-
-        text_dict[title]
-        text_dict[enclosure]
-            url
-        feed_dict[mode]
-        feed_dict[name]
         """
-        #text_dict = get_rss_item_data(new_item)
         self.dl_sema.acquire()
         try:
             proxy_dict = self.config.Admin.get("proxy", {})
             proxy_active = self.config.Admin.get("proxy_active", False)
-            if mode == "no_dl":
-                print "Not downloading", item_title
-                return
-            elif mode == "catchup":
-                print "Not downloading", item_title
-                self.controller.mark_as_downloaded(enclosure_url)
-                return
-
-
-            print "\tDownloading", item_title
-            ###GENERIC HTTP DOWNLOADER
             start_time = time.time()
-            if proxy_active:
-                opener = urllib.FancyURLopener(proxy_dict)
-            else:
-                opener = urllib.FancyURLopener({})
-            f = opener.open(enclosure_url)
-            filename = os.path.basename(f.url)
-            headers = f.headers
-            for key, val in headers.items():
-                #kludge to get the filename out of the MIME contents
-                if (key == "content-disposition") and (val.startswith("attachment;")):
-                    attach_match = attach_re.match(val)
-                    if attach_match:
-                        filename = attach_match.groups()[0]
+            runtime = 0
+            if url.startswith("http"):
+                ###GENERIC HTTP DOWNLOADER
 
-            outdir = os.path.join(self.config.Admin["download_dir"], feed_name)
-            try:
-                os.makedirs(outdir)
-            except OSError:
-                pass
+                if proxy_active:
+                    opener = urllib.FancyURLopener(proxy_dict)
+                else:
+                    opener = urllib.FancyURLopener({})
+                f = opener.open(url)
+                filename = os.path.basename(f.url)
+                self.dl_file_lock.acquire()
+                try:
+                    if filename in self.dl_file_dict:
+                        print "WARNING: Already downloading file", filename
+                        return
+                    else:
+                        self.dl_file_dict[filename] = 1
+                finally:
+                    self.dl_file_lock.release()
+                headers = f.headers
+                for key, val in headers.items():
+                    #kludge to get the filename out of the MIME contents
+                    if (key == "content-disposition") and (val.startswith("attachment;")):
+                        attach_match = attach_re.match(val)
+                        if attach_match:
+                            filename = attach_match.groups()[0]
 
-            out_fn = os.path.join(outdir, filename) 
-            outfile = open(out_fn, "wb")
-            bytes_dl = 0
-            last_time = time.time()
-            last_chunk = ""
-            sys.stdout.write("\tEntering download loop\n")
-            sys.stdout.flush()
-            sys.stdout.write("\t\t")
-            sys.stdout.flush()
-            while 1:
-                chunk = f.read(READ_CHUNK)
-                if not chunk:
-                    break
-                bytes_dl += len(chunk)
-                outfile.write(chunk)
-                curr_time = time.time()
-                if curr_time - last_time > 1:
-                    run_time = curr_time - start_time
-                    avg_kbps = (float(bytes_dl) / run_time) / 1024
-                    this_chunk = "[ %-4d ] : %s KB (%0.2f avg Kbps)" % (int(curr_time - start_time), (bytes_dl / 1024), avg_kbps)
-                    self.controller.update_download_status(identifier, this_chunk)
-                    #sys.stdout.write("\b" * len(last_chunk))
-                    #sys.stdout.flush()
-                    #sys.stdout.write(this_chunk)
-                    #sys.stdout.flush()
-                    last_chunk = this_chunk
-                    last_time = curr_time
-            outfile.close()
+                try:
+                    os.makedirs(download_directory)
+                except OSError:
+                    pass
+
+                out_fn = os.path.join(download_directory, filename) 
+                outfile = open(out_fn, "wb")
+                bytes_dl = 0
+                last_time = time.time()
+                while 1:
+                    chunk = f.read(READ_CHUNK)
+                    if not chunk:
+                        break
+                    bytes_dl += len(chunk)
+                    outfile.write(chunk)
+                    curr_time = time.time()
+                    if curr_time - last_time > 1:
+                        run_time = curr_time - start_time
+                        avg_kbps = (float(bytes_dl) / run_time) / 1024
+                        runtime = int(curr_time - start_time)
+                        self.controller.update_download_status(identifier, bytes_dl, runtime, avg_kbps)
+                        last_time = curr_time
+                outfile.close()
             end_time = time.time()
             run_time = end_time - start_time
             avg_kbps = (float(bytes_dl) / run_time) / 1024
-            print "\n\t\t* Done - Downloaded %s bytes in %s seconds (%s avg Kbps)" % (bytes_dl, run_time, avg_kbps)
-            self.controller.update_download_status(identifier, "Done in %s seconds" % int(run_time))
-            self.controller.mark_as_downloaded(enclosure_url)
+            self.controller.mark_as_downloaded(url)
+            self.controller.update_download_status(identifier, bytes_dl, runtime, avg_kbps, msg="Done")
+
+            self.dl_file_lock.acquire()
+            try:
+                try:
+                    del(self.dl_file_dict[filename])
+                except KeyError:
+                    pass
+            finally:
+                self.dl_file_lock.release()
         finally:
             self.dl_sema.release()
 
@@ -366,12 +381,17 @@ class RSSController:
         item_list = feedFilter([i for i in feed_tree.findall("*/item") if i.findall("enclosure")], self.config, feed_dict)
         return item_list
 
-    def update_download_status(self, identifier, status):
-        self.view.updateDownloadStatus(identifier, status)
-
-    #def download_item(self, item, feed_dict):
+    def update_download_status(self, identifier, bytes_dl, runtime, avg_kbps, msg=""):
+        kb_dl = bytes_dl / 1024
+        if msg:
+            download_status = "[ %-4d (%s) ] : %s KB (%0.2f avg Kbps)" % (runtime, msg, kb_dl, avg_kbps)
+        else:
+            download_status = "[ %-4d ] : %s KB (%0.2f avg Kbps)" % (runtime, kb_dl, avg_kbps)
+        self.view.updateDownloadStatus(identifier, download_status)
+        
     def download_item(self, item_title, enclosure_url, mode, feed_name, identifier=1):
-        self.dlm.addItem(item_title, enclosure_url, mode, feed_name, identifier)
+        download_dir = os.path.join(self.config.Admin["download_dir"], feed_name)
+        self.dlm.addItem(enclosure_url, download_dir, identifier)
 
     def mark_as_downloaded(self, url):
         db_fn =  self.config.Admin["podcast_db"]
@@ -479,56 +499,6 @@ class RSSController:
                     os.path.join(pm_root, feed, dl_file))
         self.update_sync_status_bar("Done with Sync")
         return
-
-        ##XXX - the rest of this method won't get executed.
-        print "syncing files"
-        portable_media_root = self.config.admin.get("portable_media_mount")
-        download_root = self.config.admin.get("download_dir")
-        on_device_files = []
-        port_media_dirs = Set([d for d in os.listdir(portable_media_root) if os.path.isdir(os.path.join(portable_media_root, d))])
-        download_dirs = Set([d for d in os.listdir(download_root) if os.path.isdir(os.path.join(download_root, d))])
-        print port_media_dirs, download_dirs
-        common_dirs = download_dirs.intersection(port_media_dirs)
-        missing_dirs = download_dirs.difference(port_media_dirs)
-        print "common_dirs", common_dirs
-        print "missing_dirs", missing_dirs
-        files_to_del = []
-        files_to_add = []
-        for d in common_dirs:
-            download_files = Set(os.listdir(os.path.join(download_root, d)))
-            port_media_files = Set(os.listdir(os.path.join(portable_media_root, d)))
-            files_to_del += [os.path.join(portable_media_root, d, f) for f in 
-                port_media_files.difference(download_files)]
-            files_to_add += [(os.path.join(download_root, d, f), os.path.join(portable_media_root, d, f)) 
-                for f in download_files.difference(port_media_files)]
-
-        for d in missing_dirs:
-            download_files = os.listdir(os.path.join(download_root, d))
-            files_to_add += [(os.path.join(download_root, d, f), os.path.join(portable_media_root, d, f))
-                for f in download_files]
-
-        print "files_to_del", files_to_del
-        print "files_to_add", files_to_add
-
-        for file_to_del in files_to_del:
-            self.update_sync_status_bar("Deleting file %s" % file_to_del)
-            #os.unlink(file_to_del)
-
-        for from_file, to_file in files_to_add:
-            try:
-                dir_to_make = os.path.split(to_file)[0]
-                print "Making dir:", dir_to_make
-                os.makedirs(os.path.split(to_file)[0])
-            except OSError:
-                pass
-            '''
-            dir_to_make = os.path.split(to_file)[0]
-            print "Making dir:", dir_to_make
-            os.makedirs(os.path.split(to_file)[0])
-            '''
-            self.update_sync_status_bar("Copying file %s" % to_file)
-            shutil.copyfile(from_file, to_file)
-        self.update_sync_status_bar("Done with Sync")
 
 
     def run(self):
